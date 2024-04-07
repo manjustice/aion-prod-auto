@@ -1,6 +1,11 @@
 import random
-from typing import NamedTuple
+from typing import NamedTuple, Self
+
+import numpy as np
 import pyautogui as pg
+
+from app.custom_exception import InvalidItemError
+from app.utils import get_std_color_sum
 
 
 class Position(NamedTuple):
@@ -50,6 +55,29 @@ class Block(NamedTuple):
         screenshot.save(path)
 
 
-class Item(NamedTuple):
-    block: Block
-    page: int
+class Item:
+    def __init__(self, block: Block, item_array: np.ndarray, page: int):
+        self.block = block
+        self.page = page
+        self.item_array = item_array
+
+    @property
+    def item_array(self):
+        return self._item_array
+
+    @item_array.setter
+    def item_array(self, value: np.ndarray):
+        if type(value) is not np.ndarray:
+            raise InvalidItemError
+
+        for column_pixels in np.transpose(value, (1, 0, 2))[:3]:
+            std_color_sum = get_std_color_sum(column_pixels)
+            if std_color_sum > 15:
+                raise InvalidItemError
+
+        self._item_array = value
+
+    def __eq__(self, other: Self):
+        if isinstance(other, Item):
+            return np.allclose(self.item_array, other.item_array, rtol=1)
+        return False
