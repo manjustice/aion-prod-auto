@@ -2,9 +2,10 @@ import numpy as np
 import pyautogui as pg
 from math import ceil
 
-from block import Block, Position, Size, Item
+from app.block import Block, Position, Size, Item
+from app.custom_exception import InvalidItemError
+from app.utils import get_std_color_sum
 from config import PRODUCT_WINDOW_SIZE, ITEMS_BLOCK_SIZE, START_PRODUCTION_BUTTON
-from utils import get_std_color_sum
 
 
 class ProductionWindow:
@@ -17,7 +18,7 @@ class ProductionWindow:
         self.block_with_items = Block(
             start=Position(
                 x=self.main_window.start.x + 120,
-                y=self.main_window.start.y + 75
+                y=self.main_window.start.y + 80
             ),
             size=Size(
                 width=ITEMS_BLOCK_SIZE[0],
@@ -34,7 +35,6 @@ class ProductionWindow:
                 height=START_PRODUCTION_BUTTON[1]
             )
         )
-
         self.scroll_bar_box = Block(
             start=Position(
                 x=self.main_window.start.x + 507,
@@ -45,10 +45,8 @@ class ProductionWindow:
         self.current_page = 1
         self.scroll_bar = self._get_scroll_bar()
         self.page_count = ceil(self.scroll_bar_box.size.height / self.scroll_bar.size.height)
-
-        self._change_page(self.current_page)
-
-        self.scroll_bar.save_screenshot("text.png")
+        self.block_with_items.save_screenshot("scr.png")
+        # self._change_page(self.current_page)
 
         self.items: list[Item] = self._get_available_items()
 
@@ -57,11 +55,11 @@ class ProductionWindow:
         items = []
 
         screen_of_items = self.block_with_items.make_screenshot()
+
         image_array = np.array(screen_of_items)
 
         height, width, _ = image_array.shape
         row = 0
-        image_count = 0
 
         while row < height:
             std_color_sum = get_std_color_sum(image_array[row, :, :])
@@ -74,11 +72,28 @@ class ProductionWindow:
                     row += 1
 
                     if std_color_sum < 15:
-                        cropped_image = screen_of_items.crop((0, height_start, width, row + 2))
-                        cropped_image.save(f"items/item-{image_count}.png")
+                        height_end = row + (18 - (row - height_start))
+                        cropped_image = screen_of_items.crop((0, height_start, width, height_end))
 
-                        image_count += 1
-                        break
+                        try:
+                            item = Item(
+                                item_array=np.array(cropped_image),
+                                page=self.current_page,
+                                block=Block(
+                                    start=Position(
+                                        x=self.block_with_items.start.x,
+                                        y=self.block_with_items.start.y + height_start
+                                    ),
+                                    size=Size(*cropped_image.size)
+                                )
+                            )
+                        except InvalidItemError:
+                            pass
+                        else:
+                            if item not in self.items:
+                                self.items.append(item)
+                        finally:
+                            break
 
             else:
                 row += 1
@@ -86,11 +101,11 @@ class ProductionWindow:
         return items
 
     def _change_page(self, page: int):
-        mouse_pos = self.scroll_bar.get_top_center_position()
-        pg.moveTo(mouse_pos.x, mouse_pos.y, duration=1)
+        from_x, from_y = self.scroll_bar.get_top_center_position()
+        pg.moveTo(from_x, from_y, duration=1)
         pg.mouseDown()
 
-        to_x = mouse_pos.x
+        to_x = from_x
         to_y = self.scroll_bar_box.start.y + self.scroll_bar.size.height * (page - 1)
         pg.moveTo(to_x, to_y, duration=1)
         pg.mouseUp()
