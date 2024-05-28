@@ -45,15 +45,32 @@ class ProductionWindow:
         self.current_page = 1
         self.scroll_bar = self._get_scroll_bar()
         self.page_count = ceil(self.scroll_bar_box.size.height / self.scroll_bar.size.height)
-        self.block_with_items.save_screenshot("scr.png")
-        # self._change_page(self.current_page)
 
-        self.items: list[Item] = self._get_available_items()
+        self.items: list[Item] = []
+        self._update_available_items()
 
-    def _get_available_items(self) -> list[Item]:
-        """Return a list of available items in the production window."""
-        items = []
+        for i, item in enumerate(self.items):
+            item.block.save_screenshot(f"items/{i}.png")
 
+    def start_make_item(self, item: Item):
+        self._change_page(item.page)
+        item_pos = item.block.get_random_position()
+
+        pg.moveTo(*item_pos, duration=1)
+        pg.click()
+
+        start_button_pos = self.start_production_button.get_random_position()
+
+        pg.moveTo(*start_button_pos, duration=1)
+        pg.click()
+
+    def _update_available_items(self):
+        """Update a list of available items in the production window."""
+        # for page in range(1, self.page_count + 1):
+        self._change_page(0)
+        self._parse_prod_items()
+
+    def _parse_prod_items(self):
         screen_of_items = self.block_with_items.make_screenshot()
 
         image_array = np.array(screen_of_items)
@@ -98,8 +115,6 @@ class ProductionWindow:
             else:
                 row += 1
 
-        return items
-
     def _change_page(self, page: int):
         from_x, from_y = self.scroll_bar.get_top_center_position()
         pg.moveTo(from_x, from_y, duration=1)
@@ -109,6 +124,8 @@ class ProductionWindow:
         to_y = self.scroll_bar_box.start.y + self.scroll_bar.size.height * (page - 1)
         pg.moveTo(to_x, to_y, duration=1)
         pg.mouseUp()
+
+        self.current_page = page
 
     def _get_scroll_bar(self) -> Block:
         screenshot = self.scroll_bar_box.make_screenshot()
@@ -170,4 +187,3 @@ class ProductionWindow:
                 height=PRODUCT_WINDOW_SIZE[1]
             )
         )
-
