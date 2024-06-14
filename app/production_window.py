@@ -57,6 +57,7 @@ class ProductionWindow:
         root_logger.debug(f"Found {len(self.items)}")
 
     def start_make_item(self, item: Item):
+        self.switch_to_aion()
         self._change_page(item.page)
         item_pos = item.block.get_random_position()
 

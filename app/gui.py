@@ -19,7 +19,7 @@ from app.custom_exception import CantFindAionError, CantFindAionProdWindowError
 from config import root_logger
 
 
-class ImageLabel(QWidget):
+class ImageLabelItem(QWidget):
     image_labels = []
 
     def __init__(self, prod_item: Item, pixmap, parent=None):
@@ -47,6 +47,8 @@ class ImageLabel(QWidget):
         self.setAcceptDrops(True)
         self.setEnabled(True)
         self.image_labels.append(self)
+
+        self.to_produce = True
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -91,7 +93,8 @@ class ImageLabel(QWidget):
     def delete_image(self):
         self.parent().layout().removeWidget(self)
         self.deleteLater()
-        ImageLabel.image_labels.remove(self)
+        self.to_produce = False
+        ImageLabelItem.image_labels.remove(self)
 
 
 class BotGui(QMainWindow):
@@ -122,6 +125,7 @@ class BotGui(QMainWindow):
         button_layout.addWidget(self.update_button)
 
         self.start_button = QPushButton("Start")
+        self.start_button.clicked.connect(self.start_production)
         button_layout.addWidget(self.start_button)
 
         main_layout.addLayout(button_layout)
@@ -142,7 +146,7 @@ class BotGui(QMainWindow):
         pixmap = QPixmap.fromImage(q_image)
         pixmap = pixmap.scaled(300, 18, Qt.KeepAspectRatio)
 
-        label = ImageLabel(item, pixmap, self)
+        label = ImageLabelItem(item, pixmap, self)
         label.setFixedSize(label.sizeHint())
         self.image_layout.addWidget(label)
         self.image_labels.append(label)
@@ -180,3 +184,8 @@ class BotGui(QMainWindow):
 
     def activate_main_window(self):
         self.activateWindow()
+
+    def start_production(self):
+        for image_item in self.image_labels:
+            if image_item.to_produce:
+                self.prod_window.start_make_item(image_item.prod_item)
