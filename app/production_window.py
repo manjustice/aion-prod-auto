@@ -1,24 +1,30 @@
-import numpy as np
-import pyautogui as pg
+import os.path
+import time
 from math import ceil
 
+import numpy as np
+import pyautogui as pg
+import pygetwindow as gw
+import win32gui
+
 from app.block import Block, Position, Size, Item
-from app.custom_exception import InvalidItemError
+from app.custom_exception import InvalidItemError, CantFindAionError, CantFindAionProdWindowError
 from app.utils import get_std_color_sum
-from config import PRODUCT_WINDOW_SIZE, ITEMS_BLOCK_SIZE, START_PRODUCTION_BUTTON
+from config import PRODUCT_WINDOW_SIZE, ITEMS_BLOCK_SIZE, START_PRODUCTION_BUTTON, BASE_DIR, root_logger
 
 
 class ProductionWindow:
     def __init__(self):
+        self.switch_to_aion()
         self.main_window = self._find_main_window()
 
         if self.main_window is None:
-            raise Exception("Main window not found!")
+            raise CantFindAionProdWindowError
 
         self.block_with_items = Block(
             start=Position(
                 x=self.main_window.start.x + 120,
-                y=self.main_window.start.y + 80
+                y=self.main_window.start.y + 85
             ),
             size=Size(
                 width=ITEMS_BLOCK_SIZE[0],
@@ -48,27 +54,25 @@ class ProductionWindow:
 
         self.items: list[Item] = []
         self._update_available_items()
-
-        for i, item in enumerate(self.items):
-            item.block.save_screenshot(f"items/{i}.png")
+        root_logger.debug(f"Found {len(self.items)}")
 
     def start_make_item(self, item: Item):
         self._change_page(item.page)
         item_pos = item.block.get_random_position()
 
-        pg.moveTo(*item_pos, duration=1)
+        pg.moveTo(*item_pos, duration=0.1)
         pg.click()
 
         start_button_pos = self.start_production_button.get_random_position()
 
-        pg.moveTo(*start_button_pos, duration=1)
+        pg.moveTo(*start_button_pos, duration=0.1)
         pg.click()
 
     def _update_available_items(self):
         """Update a list of available items in the production window."""
-        # for page in range(1, self.page_count + 1):
-        self._change_page(0)
-        self._parse_prod_items()
+        for page in range(1, self.page_count + 1):
+            self._change_page(page)
+            self._parse_prod_items()
 
     def _parse_prod_items(self):
         screen_of_items = self.block_with_items.make_screenshot()
@@ -116,13 +120,14 @@ class ProductionWindow:
                 row += 1
 
     def _change_page(self, page: int):
+        root_logger.debug(f"Changing to page {page}")
         from_x, from_y = self.scroll_bar.get_top_center_position()
-        pg.moveTo(from_x, from_y, duration=1)
+        pg.moveTo(from_x, from_y, duration=0.2)
         pg.mouseDown()
 
         to_x = from_x
-        to_y = self.scroll_bar_box.start.y + self.scroll_bar.size.height * (page - 1)
-        pg.moveTo(to_x, to_y, duration=1)
+        to_y = self.scroll_bar_box.start.y + (self.scroll_bar.size.height * (page - 1))
+        pg.moveTo(to_x, to_y, duration=0.2)
         pg.mouseUp()
 
         self.current_page = page
@@ -165,7 +170,7 @@ class ProductionWindow:
         """Try to find the hat of the production window on the screen. If it is not found, return None."""
         try:
             hat_of_product_window_loc = pg.locateOnScreen(
-                "screenshot_of_the_prod_window_hat.png", confidence=0.9
+                os.path.join(BASE_DIR, "screenshot_of_the_prod_window_hat.png"), confidence=0.9
             )
         except pg.ImageNotFoundException:
             return None
@@ -187,3 +192,27 @@ class ProductionWindow:
                 height=PRODUCT_WINDOW_SIZE[1]
             )
         )
+
+    @staticmethod
+    def switch_to_aion():
+        root_logger.debug("Trying to find Aion")
+
+        aion_window_names = ["Aion", "AIONClassic", "aion"]
+        windows = gw.getAllWindows()
+
+        for window in windows:
+            if window.title in aion_window_names:
+                root_logger.debug(f"Aion found name - {aion_window_names}. Activating")
+                window.activate()
+
+        for _ in range(50):
+            hwnd = win32gui.GetForegroundWindow()
+
+            if hwnd:
+                active_window_title = win32gui.GetWindowText(hwnd)
+                if active_window_title in aion_window_names:
+                    return
+
+            time.sleep(0.1)
+
+        raise CantFindAionError
