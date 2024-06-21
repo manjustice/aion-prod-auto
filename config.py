@@ -3,8 +3,8 @@ import os
 from logging.handlers import RotatingFileHandler
 
 PRODUCT_WINDOW_SIZE = (772, 555)
-ITEMS_BLOCK_SIZE = (300, 420)
-START_PRODUCTION_BUTTON = (86, 20)
+ITEMS_BLOCK_SIZE = (300, 425)
+START_PRODUCTION_BUTTON = (80, 20)
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

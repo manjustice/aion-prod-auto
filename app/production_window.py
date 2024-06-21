@@ -1,7 +1,9 @@
 import os.path
+import random
 import time
 from math import ceil
 
+import cv2
 import numpy as np
 import pyautogui as pg
 import pygetwindow as gw
@@ -33,7 +35,7 @@ class ProductionWindow:
         )
         self.start_production_button = Block(
             start=Position(
-                x=self.main_window.start.x + 423,
+                x=self.main_window.start.x + 430,
                 y=self.main_window.start.y + 530
             ),
             size=Size(
@@ -41,6 +43,17 @@ class ProductionWindow:
                 height=START_PRODUCTION_BUTTON[1]
             )
         )
+        self.item_count_left_block = Block(
+            start=Position(
+                x=self.main_window.start.x + 588,
+                y=self.main_window.start.y + 533
+            ),
+            size=Size(
+                width=8,
+                height=11
+            )
+        )
+        self.screenshot_of_zero_item_count = cv2.imread(os.path.join(BASE_DIR, "screenshot_of_zero_item_count.png"))
         self.scroll_bar_box = Block(
             start=Position(
                 x=self.main_window.start.x + 507,
@@ -49,14 +62,26 @@ class ProductionWindow:
             size=Size(width=16, height=398)
         )
         self.current_page = 1
-        self.scroll_bar = self._get_scroll_bar()
-        self.page_count = ceil(self.scroll_bar_box.size.height / self.scroll_bar.size.height)
+        while True:
+            self.scroll_bar = self._get_scroll_bar()
+            self.page_count = ceil(self.scroll_bar_box.size.height / self.scroll_bar.size.height)
+            if self.page_count < 100:
+                break
+            else:
+                self.scroll_bar.save_screenshot(f"{BASE_DIR}/scroll.png")
 
+        root_logger.debug(f"{self.page_count} - pages")
         self.items: list[Item] = []
         self._update_available_items()
-        root_logger.debug(f"Found {len(self.items)}")
+        root_logger.debug(f"Found {len(self.items)} items, {self.page_count}")
 
-    def start_make_item(self, item: Item):
+    def start_make_items(self, items: list[Item]):
+        root_logger.debug(f"Starting make {len(items)} items")
+        for item in items:
+            self._start_make_item(item)
+            self._wait_item_prod_finish()
+
+    def _start_make_item(self, item: Item):
         self.switch_to_aion()
         self._change_page(item.page)
         item_pos = item.block.get_random_position()
@@ -68,6 +93,24 @@ class ProductionWindow:
 
         pg.moveTo(*start_button_pos, duration=0.1)
         pg.click()
+
+    def _wait_item_prod_finish(self):
+        while True:
+            current_item_count_screenshot = np.array(self.item_count_left_block.make_screenshot())
+
+            current = cv2.cvtColor(current_item_count_screenshot, cv2.COLOR_BGR2GRAY)
+            zero = cv2.cvtColor(self.screenshot_of_zero_item_count, cv2.COLOR_BGR2GRAY)
+
+            h, w = zero.shape
+            diff = cv2.subtract(zero, current)
+            err = np.sum(diff ** 2)
+            mse = err / (float(h * w))
+
+            if mse < 10:
+                time.sleep(5)
+                return
+            else:
+                time.sleep(10)
 
     def _update_available_items(self):
         """Update a list of available items in the production window."""
@@ -114,6 +157,7 @@ class ProductionWindow:
                         else:
                             if item not in self.items:
                                 self.items.append(item)
+                                item.block.save_screenshot(f"{BASE_DIR}/items/{len(self.items)}.png")
                         finally:
                             break
 
@@ -212,6 +256,7 @@ class ProductionWindow:
             if hwnd:
                 active_window_title = win32gui.GetWindowText(hwnd)
                 if active_window_title in aion_window_names:
+                    time.sleep(0.5)
                     return
 
             time.sleep(0.1)

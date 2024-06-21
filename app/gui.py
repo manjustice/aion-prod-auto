@@ -1,3 +1,5 @@
+import numpy as np
+from PIL import Image
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -20,8 +22,6 @@ from config import root_logger
 
 
 class ImageLabelItem(QWidget):
-    image_labels = []
-
     def __init__(self, prod_item: Item, pixmap, parent=None):
         super().__init__(parent)
         self.drag_start_position = None
@@ -46,7 +46,6 @@ class ImageLabelItem(QWidget):
         self.setFixedSize(self.sizeHint())
         self.setAcceptDrops(True)
         self.setEnabled(True)
-        self.image_labels.append(self)
 
         self.to_produce = True
 
@@ -55,7 +54,7 @@ class ImageLabelItem(QWidget):
             self.drag_start_position = event.pos()
 
     def mouseMoveEvent(self, event):
-        if not event.buttons() == Qt.LeftButton:
+        if event.buttons() != Qt.LeftButton:
             return
         if (event.pos() - self.drag_start_position).manhattanLength() < QApplication.startDragDistance():
             return
@@ -94,7 +93,6 @@ class ImageLabelItem(QWidget):
         self.parent().layout().removeWidget(self)
         self.deleteLater()
         self.to_produce = False
-        ImageLabelItem.image_labels.remove(self)
 
 
 class BotGui(QMainWindow):
@@ -186,6 +184,13 @@ class BotGui(QMainWindow):
         self.activateWindow()
 
     def start_production(self):
-        for image_item in self.image_labels:
-            if image_item.to_produce:
-                self.prod_window.start_make_item(image_item.prod_item)
+        items_to_produce = []
+        try:
+            for image_item in self.image_labels:
+                if image_item.to_produce:
+                    items_to_produce.append(image_item.prod_item)
+
+            if items_to_produce:
+                self.prod_window.start_make_items(items_to_produce)
+        except Exception as e:
+            root_logger.error(e, exc_info=True)
